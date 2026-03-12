@@ -2,7 +2,7 @@
 
 Archaeological Site Mapping AI V2 is a computer vision project for analyzing archaeological landscapes from aerial or satellite-style imagery. It combines object detection and semantic segmentation to identify classes such as vegetation, ruins, structures, boulders, and other scene elements relevant to site mapping.
 
-This repository is published as a public project version of the work. The datasets are included in the repository, while trained weights and generated experiment outputs are intentionally excluded from Git.
+This repository is published as a public project version of the work. The datasets are included in the repository, and the two trained weights required for the main inference pipeline are included. Other generated experiment outputs remain excluded from Git.
 
 ## Features
 
@@ -48,10 +48,14 @@ Included in this repository:
 Excluded from this repository:
 
 - `runs/`
-- `*.pt`
-- `*.pth`
+- most `.pt` and `.pth` files
 
-The detection and segmentation datasets are included. To run inference end to end, you still need local trained model weights or you need to retrain the models.
+Included inference weights:
+
+- `deeplab_model.pth`
+- `runs/detect/yolov8s_archaeology2/weights/best.pt`
+
+The detection and segmentation datasets are included, and the main inference weights are included. You only need to install dependencies to run the core demo and app flows.
 
 ## Installation
 
@@ -109,7 +113,7 @@ Notes:
 python predict.py
 ```
 
-Expected local asset:
+Included repository asset:
 
 - `runs/detect/yolov8s_archaeology2/weights/best.pt`
 
@@ -119,7 +123,7 @@ Expected local asset:
 python demo_pipeline.py
 ```
 
-Expected local assets:
+Included repository assets:
 
 - `runs/detect/yolov8s_archaeology2/weights/best.pt`
 - `deeplab_model.pth`
@@ -255,6 +259,6 @@ From the saved local YOLO training run:
 
 ## Important Notes
 
-- The local workspace contains trained weights referenced by the app, but those files are not committed to the public repository.
+- The repository includes the two trained weights needed by the main app and demo pipeline, but other model files and run outputs remain excluded.
 - `train_seg.py` is the YOLO detection training script despite its generic name.
 - `requirements.txt` is inferred from project imports and has not been exported from a fully locked environment.
