@@ -275,4 +275,4 @@ From the saved local YOLO training run:
 
 - The repository includes the two trained weights needed by the main app and demo pipeline, but other model files and run outputs remain excluded.
 - `train_seg.py` is the YOLO detection training script despite its generic name.
-- `requirements.txt` is inferred from project imports and has not been exported from a fully locked environment.
+
