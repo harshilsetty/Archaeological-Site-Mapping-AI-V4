@@ -2,7 +2,7 @@
 
 Archaeological Site Mapping AI V2 is a computer vision project for analyzing archaeological landscapes from aerial or satellite-style imagery. It combines object detection and semantic segmentation to identify classes such as vegetation, ruins, structures, boulders, and other scene elements relevant to site mapping.
 
-This repository is published as a public, code-first version of the project. Large datasets, trained weights, and generated experiment outputs are intentionally excluded from Git.
+This repository is published as a public project version of the work. The datasets are included in the repository, while trained weights and generated experiment outputs are intentionally excluded from Git.
 
 ## Features
 
@@ -47,13 +47,11 @@ Included in this repository:
 
 Excluded from this repository:
 
-- `dataset/`
-- `seg_dataset/`
 - `runs/`
 - `*.pt`
 - `*.pth`
 
-To run training or inference end to end, you must restore the expected datasets and model weights locally or retrain the models.
+The detection and segmentation datasets are included. To run inference end to end, you still need local trained model weights or you need to retrain the models.
 
 ## Installation
 
@@ -255,7 +253,8 @@ From the saved local YOLO training run:
 - final `mAP50`: `0.83206`
 - final `mAP50-95`: `0.58611`
 
+## Important Notes
 
-
-
-
+- The local workspace contains trained weights referenced by the app, but those files are not committed to the public repository.
+- `train_seg.py` is the YOLO detection training script despite its generic name.
+- `requirements.txt` is inferred from project imports and has not been exported from a fully locked environment.
