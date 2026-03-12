@@ -1,183 +1,203 @@
 # Archaeological Site Mapping AI V2
 
-## Overview
+Archaeological Site Mapping AI V2 is a computer vision project for analyzing archaeological landscapes from aerial or satellite-style imagery. It combines object detection and semantic segmentation to identify classes such as vegetation, ruins, structures, boulders, and other scene elements relevant to site mapping.
 
-This project is a computer vision pipeline for archaeological site mapping using satellite or aerial imagery. It combines object detection, semantic segmentation, and a lightweight Streamlit interface for interactive inference.
+This repository is published as a public, code-first version of the project. Large datasets, trained weights, and generated experiment outputs are intentionally excluded from Git.
 
-The repository contains:
+## Features
 
 - YOLO-based object detection training and inference
 - DeepLabV3+ semantic segmentation training and inference
 - COCO-to-mask conversion utilities for segmentation datasets
-- A Streamlit app for combined detection and segmentation visualization
-- An experimental terrain feature extraction step for erosion-risk estimation
+- Streamlit interface for interactive image upload and visualization
+- Terrain-feature extraction experiment for erosion-risk style analysis
 
 ## Tech Stack
 
-### Core Language
+### Core
 
 - Python
-
-### Machine Learning and Vision
-
 - PyTorch
+- NumPy
+
+### Computer Vision
+
 - Ultralytics YOLO
 - segmentation-models-pytorch
 - OpenCV
-- NumPy
-- TorchMetrics
-- pycocotools
 - Pillow
+- pycocotools
+- TorchMetrics
 
-### UI and Analysis
+### App and Analysis
 
 - Streamlit
 - pandas
 
-## Setup
+## Public Repository Scope
 
-Install the project dependencies with:
+Included in this repository:
+
+- training scripts
+- inference scripts
+- Streamlit app code
+- utility scripts
+- dataset config files
+- documentation
+
+Excluded from this repository:
+
+- `dataset/`
+- `seg_dataset/`
+- `runs/`
+- `*.pt`
+- `*.pth`
+
+To run training or inference end to end, you must restore the expected datasets and model weights locally or retrain the models.
+
+## Installation
+
+Install dependencies with:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## Public Repository Note
+## Project Workflow
 
-This public repository is prepared as a code-first version of the project.
-
-- Large datasets are not tracked in Git
-- Trained model weights are not tracked in Git
-- Generated run artifacts are not tracked in Git
-
-To fully run training or inference, you will need to place the expected datasets and model weights back into their original local paths or retrain the models.
+1. Prepare the detection and segmentation datasets.
+2. Generate segmentation masks from COCO annotations if needed.
+3. Train the YOLO detection model.
+4. Train the DeepLab segmentation model.
+5. Run local inference or launch the Streamlit app.
 
 ## Usage
 
-### 1. Generate Segmentation Masks
+### Generate Segmentation Masks
 
-If the `seg_dataset/*/masks` folders are missing or need to be regenerated from COCO annotations:
+Use this when segmentation masks need to be created from COCO annotations:
 
 ```bash
 python generate_masks.py
 ```
 
-### 2. Train YOLO Detection Model
-
-Train the object detection model using the dataset defined in `data.yaml`:
+### Train the Detection Model
 
 ```bash
 python train_seg.py
 ```
 
-This trains a YOLOv8s detector and writes outputs under `runs/detect/`.
+Notes:
 
-### 3. Train DeepLab Segmentation Model
+- trains a YOLOv8s detector
+- uses `data.yaml` for dataset configuration
+- writes outputs under `runs/detect/`
 
-Train the DeepLabV3+ segmentation model:
+### Train the Segmentation Model
 
 ```bash
 python train_deeplab_seg.py
 ```
 
-This saves the segmentation weights to `deeplab_model.pth`.
+Notes:
 
-### 4. Run Detection on a Sample Image
+- trains DeepLabV3+ with a ResNet34 encoder
+- expects images and masks under `seg_dataset/`
+- saves weights to `deeplab_model.pth`
+
+### Run Detection Inference
 
 ```bash
 python predict.py
 ```
 
-This expects trained YOLO weights at `runs/detect/yolov8s_archaeology2/weights/best.pt`.
+Expected local asset:
 
-### 5. Run the Combined Demo Pipeline
+- `runs/detect/yolov8s_archaeology2/weights/best.pt`
+
+### Run the Combined Demo Pipeline
 
 ```bash
 python demo_pipeline.py
 ```
 
-This expects both the YOLO weights and `deeplab_model.pth` to be available locally.
+Expected local assets:
 
-### 6. Launch the Streamlit App
+- `runs/detect/yolov8s_archaeology2/weights/best.pt`
+- `deeplab_model.pth`
+
+### Launch the Streamlit App
 
 ```bash
 streamlit run app.py
 ```
 
-The app supports image upload and displays:
+The app provides:
 
-- original image
-- YOLO detections
+- uploaded image preview
+- YOLO detection output
 - segmentation overlay
-- combined output
+- combined archaeological mapping view
+- class visibility toggles
+- confidence threshold control
 
-### 7. Extract Terrain Features
+### Extract Terrain Features
 
 ```bash
 python terrain_model/extract_terrain_features.py
 ```
 
-This creates a terrain-oriented CSV with vegetation ratio, simulated slope, simulated elevation, and erosion-risk labels.
+This script derives a small terrain-style feature table using vegetation ratio, simulated slope, simulated elevation, and erosion-risk labels.
 
-## Main Components
+## Key Files
 
-- `app.py`: Streamlit application for image upload and visualization
-- `train_seg.py`: YOLOv8 object detection training script
-- `train_deeplab_seg.py`: DeepLabV3+ semantic segmentation training script
-- `demo_pipeline.py`: local combined pipeline demo
-- `predict.py`: single-image detection inference
-- `generate_masks.py`: generates segmentation masks from COCO annotations
-- `dataset_loader.py`: PyTorch dataset loader for segmentation
-- `terrain_model/extract_terrain_features.py`: experimental erosion-risk feature extraction
+- `app.py`: Streamlit application for interactive inference
+- `train_seg.py`: YOLO detection training
+- `train_deeplab_seg.py`: DeepLab segmentation training and evaluation
+- `demo_pipeline.py`: local combined detection and segmentation demo
+- `predict.py`: single-image YOLO inference
+- `generate_masks.py`: COCO-to-mask conversion for segmentation data
+- `dataset_loader.py`: segmentation dataset loader
+- `metrics.py`: IoU and Dice metric setup
+- `terrain_model/extract_terrain_features.py`: terrain-feature extraction experiment
 
 ## Dataset Summary
 
-The repository contains aligned detection and segmentation datasets.
+The original local workspace used aligned detection and segmentation splits.
 
-### Split Counts
+### Split Sizes
 
-| Split | Images | Labels | Segmentation Masks |
+| Split | Images | Labels | Masks |
 | --- | ---: | ---: | ---: |
 | Train | 648 | 648 | 648 |
 | Validation | 61 | 61 | 61 |
 | Test | 31 | 31 | 31 |
 | Total | 740 | 740 | 740 |
 
-### Detection Dataset
+### Detection Classes
 
-- Location: `dataset/`
-- Annotation format: YOLO text labels
-- Classes defined in `data.yaml`:
-  - `0`: boulders
-  - `1`: others
-  - `2`: ruins
-  - `3`: structures
-  - `4`: vegetation
+Defined in `data.yaml`:
 
-### Segmentation Dataset
+- `0`: boulders
+- `1`: others
+- `2`: ruins
+- `3`: structures
+- `4`: vegetation
 
-- Location: `seg_dataset/`
-- Annotation format: COCO JSON plus generated PNG masks
-- Model configuration uses 6 classes:
-  - `0`: background
-  - `1`: boulders
-  - `2`: others
-  - `3`: ruins
-  - `4`: structures
-  - `5`: vegetation
+### Segmentation Classes
 
-### Segmentation Annotation Totals
+Used by the DeepLab model configuration:
 
-| Split | Images | COCO Annotations |
-| --- | ---: | ---: |
-| Train | 648 | 15,760 |
-| Validation | 61 | 1,595 |
-| Test | 31 | 1,103 |
-| Total | 740 | 18,458 |
+- `0`: background
+- `1`: boulders
+- `2`: others
+- `3`: ruins
+- `4`: structures
+- `5`: vegetation
 
-### Detection Object Counts by Class
+### Detection Object Distribution
 
-| Class | Object Count |
+| Class | Count |
 | --- | ---: |
 | Vegetation | 10,620 |
 | Boulders | 3,876 |
@@ -186,9 +206,9 @@ The repository contains aligned detection and segmentation datasets.
 | Structures | 230 |
 | Total | 18,458 |
 
-This shows a strong class imbalance, with vegetation dominating the dataset and structures being relatively rare.
+The dataset is imbalanced, with vegetation strongly overrepresented and structures relatively scarce.
 
-### Image Counts by Site Prefix
+### Site Distribution by Filename Prefix
 
 | Site | Images |
 | --- | ---: |
@@ -197,94 +217,56 @@ This shows a strong class imbalance, with vegetation dominating the dataset and 
 | Pattadakal | 130 |
 | Nalanda | 117 |
 
-## Models and Artifacts
+## Model Configuration Summary
 
-### Base Weights Present
+### Detection
 
-These files exist in the current local workspace, but are excluded from the public Git repository:
+Saved local training configuration showed:
 
-- `yolov8n.pt`
-- `yolov8s.pt`
-- `yolo11n.pt`
+- model: `yolov8s.pt`
+- task: detection
+- epochs: 80
+- image size: 640
+- batch size: 8
+- workers: 8
 
-### Trained Weights Present
+### Segmentation
 
-These files exist in the current local workspace, but are excluded from the public Git repository:
+The training script configures:
 
-- `runs/detect/yolov8s_archaeology2/weights/best.pt`
-- `runs/detect/train2/weights/best.pt`
-- `deeplab_model.pth`
+- architecture: DeepLabV3+
+- encoder: ResNet34
+- encoder weights: ImageNet
+- input resolution: `512 x 512`
+- batch size: 4
+- optimizer: Adam
+- learning rate: `1e-4`
+- loss: CrossEntropyLoss
+- metrics: IoU and Dice
 
-### App Inference Models
+## Recorded Detection Results
 
-The Streamlit app uses:
+From the saved local YOLO training run:
 
-- YOLO weights from `runs/detect/yolov8s_archaeology2/weights/best.pt`
-- DeepLab weights from `deeplab_model.pth`
+- best `mAP50-95`: `0.58673`
+- best `mAP50`: `0.83206`
+- final precision: `0.89978`
+- final recall: `0.72010`
+- final `mAP50`: `0.83206`
+- final `mAP50-95`: `0.58611`
 
-## Training Configuration
+## Important Notes
 
-### YOLO Detection Training
+- The local workspace contains trained weights referenced by the app, but those files are not committed to the public repository.
+- `train_seg.py` is the YOLO detection training script despite its generic name.
+- `requirements.txt` is inferred from project imports and has not been exported from a fully locked environment.
 
-From `runs/detect/yolov8s_archaeology2/args.yaml`:
+## Recommended Improvements
 
-- Model: `yolov8s.pt`
-- Task: detection
-- Epochs: 80
-- Image size: 640
-- Batch size: 8
-- Device: GPU `0`
-- Workers: 8
-- Validation enabled during training
-
-### DeepLab Segmentation Training
-
-From `train_deeplab_seg.py`:
-
-- Architecture: DeepLabV3+
-- Encoder: ResNet34
-- Encoder weights: ImageNet
-- Input size: `512 x 512`
-- Batch size: 4
-- Optimizer: Adam
-- Learning rate: `1e-4`
-- Loss: CrossEntropyLoss
-- Metrics: IoU and Dice
-- Epochs in script: 10
-
-## Saved Detection Results
-
-From `runs/detect/yolov8s_archaeology2/results.csv`:
-
-- Best `mAP50-95`: `0.58673` at epoch `78`
-- Best `mAP50`: `0.83206` at epoch `80`
-- Final epoch `80` metrics:
-  - Precision: `0.89978`
-  - Recall: `0.72010`
-  - `mAP50`: `0.83206`
-  - `mAP50-95`: `0.58611`
-
-## Project Structure Notes
-
-- `runs/detect/` contains training and prediction outputs from multiple YOLO runs
-- `seg_dataset/` includes COCO annotations and generated masks for all splits
-- `terrain_model/` currently contains one experimental script for erosion-related feature extraction
-
-## Observations
-
-- The project is a hybrid detection plus segmentation system rather than a single-model repository.
-- Detection and segmentation datasets are aligned and use the same image counts across splits.
-- The local workspace is inference-ready because the trained YOLO and DeepLab weights referenced by the app exist.
-- The class distribution is imbalanced, which may affect model performance on underrepresented classes such as structures.
-- The repository now includes `requirements.txt`, but package versions are estimated from imports rather than exported from a known working environment.
-- The segmentation COCO metadata appears to contain an unusual category naming entry for class `0`, while the code clearly treats class `0` as background.
-
-## Recommended Next Improvements
-
-- Add a `pyproject.toml` or fully pinned environment export
-- Add a proper training and inference usage guide
-- Document expected hardware requirements for YOLO and DeepLab training
-- Clean up naming so detection and segmentation scripts are easier to distinguish
-- Add segmentation evaluation logs or saved metrics similar to YOLO training outputs 
+- add a fully pinned environment file or `pyproject.toml`
+- rename training scripts for clearer intent
+- add sample screenshots or demo outputs
+- document dataset acquisition or reconstruction steps
+- add saved segmentation evaluation outputs similar to the YOLO results logs
 
 
