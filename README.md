@@ -328,7 +328,6 @@ Used in DeepLab model:
 | Structures | 230 |
 | Total | 18458 |
 
-The dataset shows class imbalance, with vegetation dominating the dataset.
 
 ## Dataset Locations
 
