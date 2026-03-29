@@ -34,10 +34,6 @@ Supporting files:
 - [artifacts/model_metrics_20260329/xgboost_erosion/roc_curve_eval.png](./artifacts/model_metrics_20260329/xgboost_erosion/roc_curve_eval.png)
 - [artifacts/model_metrics_20260329/xgboost_erosion/pr_curve_eval.png](./artifacts/model_metrics_20260329/xgboost_erosion/pr_curve_eval.png)
 
-![XGBoost Confusion Matrix](./artifacts/model_metrics_20260329/xgboost_erosion/confusion_matrix_eval.png)
-![XGBoost ROC Curve](./artifacts/model_metrics_20260329/xgboost_erosion/roc_curve_eval.png)
-![XGBoost PR Curve](./artifacts/model_metrics_20260329/xgboost_erosion/pr_curve_eval.png)
-
 ## 2) Cross Validation (XGBoost)
 
 5-fold Stratified CV on [terrain_model/erosion_dataset.csv](./terrain_model/erosion_dataset.csv) with model config from [terrain_model/train_xgboost.py](./terrain_model/train_xgboost.py).
@@ -81,8 +77,6 @@ Detection artifacts:
 - [artifacts/model_metrics_20260329/yolov8n_train2/raw_artifacts/](./artifacts/model_metrics_20260329/yolov8n_train2/raw_artifacts/)
 - [artifacts/model_metrics_20260329/yolov8s_archaeology2/training_curves_custom.png](./artifacts/model_metrics_20260329/yolov8s_archaeology2/training_curves_custom.png)
 
-![YOLOv8s Training Curves](./artifacts/model_metrics_20260329/yolov8s_archaeology2/training_curves_custom.png)
-
 ## 4) Segmentation Metrics (DeepLabV3+)
 
 Reference artifact: [artifacts/model_metrics_20260329/deeplabv3plus_segmentation/metrics_summary.json](./artifacts/model_metrics_20260329/deeplabv3plus_segmentation/metrics_summary.json)
@@ -99,9 +93,6 @@ Per-class scores are available in:
 
 - [artifacts/model_metrics_20260329/deeplabv3plus_segmentation/segmentation_per_class_scores.png](./artifacts/model_metrics_20260329/deeplabv3plus_segmentation/segmentation_per_class_scores.png)
 - [artifacts/model_metrics_20260329/deeplabv3plus_segmentation/segmentation_confusion_matrix.png](./artifacts/model_metrics_20260329/deeplabv3plus_segmentation/segmentation_confusion_matrix.png)
-
-![DeepLabV3+ Per-Class Scores](./artifacts/model_metrics_20260329/deeplabv3plus_segmentation/segmentation_per_class_scores.png)
-![DeepLabV3+ Confusion Matrix](./artifacts/model_metrics_20260329/deeplabv3plus_segmentation/segmentation_confusion_matrix.png)
 
 ## 5) Operational Metrics Snapshot
 
