@@ -240,7 +240,6 @@ Additional project docs:
 
 See [FUTURE_WORK.md](./FUTURE_WORK.md) for details.
 
-## License
 
 
 
