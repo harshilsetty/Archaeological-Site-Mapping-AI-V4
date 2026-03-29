@@ -21,6 +21,7 @@ from terrain_model.ai_explainer import generate_gemini_explanation, generate_gem
 
 def resolve_segmentation_checkpoint():
     candidates = [
+        os.path.join("models", "deeplab_model.pth"),
         os.path.join("runs", "segmentation", "deeplab_model_best.pth"),
         "deeplab_model.pth",
     ]
@@ -30,6 +31,19 @@ def resolve_segmentation_checkpoint():
         raise FileNotFoundError("No segmentation checkpoint found.")
 
     return max(existing, key=os.path.getmtime)
+
+
+def resolve_erosion_model_path():
+    candidates = [
+        os.path.join("models", "erosion_model.pkl"),
+        "erosion_model.pkl",
+    ]
+
+    for path in candidates:
+        if os.path.exists(path):
+            return path
+
+    raise FileNotFoundError("No erosion model checkpoint found.")
 
 def generate_report(
     vegetation_ratio,
@@ -439,7 +453,7 @@ def load_models():
     device = "cuda" if torch.cuda.is_available() else "cpu"
     seg_model = seg_model.to(device)
 
-    erosion_model = joblib.load("erosion_model.pkl")
+    erosion_model = joblib.load(resolve_erosion_model_path())
 
     return yolo_model, seg_model, erosion_model, device
 

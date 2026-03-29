@@ -29,6 +29,7 @@ _SHAP_EXPLAINER = None
 
 def _resolve_segmentation_checkpoint():
     candidates = [
+        os.path.join(ROOT, "models", "deeplab_model.pth"),
         os.path.join(ROOT, "runs", "segmentation", "deeplab_model_best.pth"),
         os.path.join(ROOT, "deeplab_model.pth"),
     ]
@@ -38,6 +39,19 @@ def _resolve_segmentation_checkpoint():
         raise FileNotFoundError("No segmentation checkpoint found.")
 
     return max(existing, key=os.path.getmtime)
+
+
+def _resolve_erosion_model_path():
+    candidates = [
+        os.path.join(ROOT, "models", "erosion_model.pkl"),
+        os.path.join(ROOT, "erosion_model.pkl"),
+    ]
+
+    for path in candidates:
+        if os.path.exists(path):
+            return path
+
+    raise FileNotFoundError("No erosion model checkpoint found.")
 
 
 def _load_models():
@@ -55,7 +69,7 @@ def _load_models():
     device = "cuda" if torch.cuda.is_available() else "cpu"
     seg = seg.to(device)
 
-    erosion = joblib.load(os.path.join(ROOT, "erosion_model.pkl"))
+    erosion = joblib.load(_resolve_erosion_model_path())
     return yolo, seg, erosion, device
 
 

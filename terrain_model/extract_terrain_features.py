@@ -6,6 +6,19 @@ import os
 import random
 import segmentation_models_pytorch as smp
 
+
+def resolve_segmentation_checkpoint():
+    candidates = [
+        os.path.join("models", "deeplab_model.pth"),
+        "deeplab_model.pth",
+    ]
+
+    for path in candidates:
+        if os.path.exists(path):
+            return path
+
+    raise FileNotFoundError("No segmentation checkpoint found.")
+
 # ----------------------------
 # Load DeepLab Segmentation Model
 # ----------------------------
@@ -17,7 +30,7 @@ model = smp.DeepLabV3Plus(
     classes=6
 )
 
-model.load_state_dict(torch.load("deeplab_model.pth", map_location="cpu"))
+model.load_state_dict(torch.load(resolve_segmentation_checkpoint(), map_location="cpu"))
 model.eval()
 
 device = "cuda" if torch.cuda.is_available() else "cpu"

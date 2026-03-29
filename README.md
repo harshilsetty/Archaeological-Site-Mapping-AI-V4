@@ -1,427 +1,235 @@
-# AI-Driven Archaeological Site Mapping
+# Archaeological Site Mapping AI
 
-![Python](https://img.shields.io/badge/Python-3.10-blue)
-![PyTorch](https://img.shields.io/badge/PyTorch-DeepLearning-red)
-![ComputerVision](https://img.shields.io/badge/Task-ComputerVision-green)
+![Python](https://img.shields.io/badge/Python-3.13-blue)
+![PyTorch](https://img.shields.io/badge/PyTorch-Deep%20Learning-red)
+![XGBoost](https://img.shields.io/badge/XGBoost-Classifier-green)
+![License](https://img.shields.io/badge/License-TBD-lightgrey)
+![Last Updated](https://img.shields.io/badge/Last%20Updated-2026--03--29-informational)
+![Project Status](https://img.shields.io/badge/Status-Active-success)
 
-AI-Driven Archaeological Site Mapping is a computer vision-based system designed to analyze archaeological landscapes from aerial or satellite imagery. The project combines object detection and semantic segmentation to automatically identify terrain features such as ruins, vegetation, structures, and boulders.
+Production-grade geo-AI system for archaeological landscape intelligence using computer vision, geospatial feature engineering, explainable ML, and LLM-assisted interpretation.
 
-It also includes an erosion-risk module that uses terrain and geo-context features (slope, elevation, rainfall, soil type, and class ratios) to estimate potential erosion risk.
+## Demo / Preview
 
-The system aims to assist researchers and archaeologists by automating site mapping and landscape analysis, enabling faster discovery and interpretation of potential archaeological regions.
+Add screenshots or GIFs here:
 
-This repository represents the public development version of the project. It includes datasets, training scripts, inference pipelines, and a Streamlit-based visualization interface.
+- Streamlit UI output: `docs/screenshots/app-hampi.png`
+- Next.js UI output: `geo-ai-ui` pages
+- Overlay outputs: detection, segmentation, combined risk heatmap
+
+## Problem Statement
+
+Archaeological surveys over large regions are slow, expensive, and difficult to scale manually. Teams need a system that can:
+
+- detect ruins and terrain classes from imagery,
+- estimate erosion risk at candidate locations,
+- explain *why* risk is predicted,
+- provide outputs usable by both field and technical teams.
+
+## Solution Overview
+
+This repository combines:
+
+1. Object detection for structures/ruins/vegetation cues (YOLO).
+2. Semantic segmentation for dense surface understanding (DeepLabV3+).
+3. Terrain and geo-context feature engineering (slope, elevation, rainfall, soil, class ratios).
+4. Erosion risk scoring with XGBoost.
+5. SHAP-based explainability plus optional LLM narrative generation.
+6. Dual interfaces: Streamlit and a Next.js + Python worker architecture.
+
+This project is built with a focus on interpretability, combining SHAP and LLMs to ensure predictions are transparent and actionable.
+
+What makes it unique is the end-to-end bridge from image evidence to interpretable, location-aware risk output.
+
+## Key Features
+
+- YOLO-based archaeological object detection
+- DeepLabV3+ terrain segmentation
+- XGBoost erosion risk classification
+- SHAP feature attribution for local explainability
+- LLM insight generation for human-readable analysis
+- Streamlit and Next.js interfaces
+- API fallback strategies for geospatial inputs
+- Production-style model metrics artifact pack
 
 ## System Architecture
 
-```text
-Input Image
-	|
-	v
-YOLOv8 Object Detection
-	|
-	v
-DeepLabV3+ Segmentation
-	|
-	v
-Combined Feature Mapping
-	|
-	v
-Terrain + Geo Feature Fusion
-	|
-	v
-Erosion Risk Prediction (XGBoost)
-	|
-	v
-Visualization (Streamlit App)
-```
+High-level pipeline:
 
-## Project Structure
+1. Input image + coordinates
+2. CV branch A: YOLO detection boxes/classes
+3. CV branch B: DeepLab segmentation mask
+4. Feature Engineering: ratios + geospatial API features
+5. ML Inference: XGBoost erosion prediction
+6. Explainability: SHAP top factors
+7. LLM Layer: narrative interpretation (optional)
+8. UI Layer: overlays, metrics, report-ready summaries
 
-```text
-archaeological-site-mapping
-|
-|-- app.py                         # Streamlit interface
-|-- demo_pipeline.py               # Combined inference pipeline
-|-- predict.py                     # YOLO detection inference
-|-- train_seg.py                   # YOLO training script
-|-- train_deeplab_seg.py           # DeepLab segmentation training
-|-- train_erosion_model.py         # Main erosion model training script
-|-- erosion_dataset.csv            # Erosion training data
-|-- erosion_model.pkl              # Trained erosion model
-|
-|-- seg_dataset/                   # Segmentation dataset
-|-- runs/                          # YOLO training outputs
-|
-|-- terrain_model/
-|   |-- extract_terrain_features.py
-|   `-- train_erosion_model.py
-|
-|-- docs/
-|   |-- screenshots/
-|
-|-- requirements.txt
-`-- README.md
-```
+Interaction by layer:
 
-## Quick Demo
+- Computer Vision: extracts visual evidence from aerial imagery.
+- Feature Engineering: converts raw vision + geo signals into model features.
+- ML Model: predicts erosion risk probability and class.
+- LLM: translates numeric explanations into readable insights.
 
-Run the combined detection and segmentation pipeline:
-
-```bash
-python demo_pipeline.py
-```
-
-Launch the interactive interface:
-
-```bash
-python -m streamlit run app.py
-```
-
-Upload an image and visualize:
-
-- detected ruins
-- segmented landscape
-- combined archaeological mapping
-
-## Project Objectives
-
-The goal of this project is to:
-
-- Detect archaeological structures from satellite imagery
-- Segment landscape elements for better terrain understanding
-- Assist archaeologists in site discovery and mapping
-- Provide an interactive visualization interface
-- Experiment with terrain-based feature analysis for potential risk detection
-
-## Features
-
-- YOLO-based object detection
-- DeepLabV3+ semantic segmentation
-- Erosion risk prediction using trained XGBoost classifier
-- COCO annotation to segmentation mask conversion
-- Interactive Streamlit web interface
-- Combined detection + segmentation inference pipeline
-- Terrain feature extraction and erosion-model training pipeline
-- Elevation lookup via Open-Elevation API with fallback handling
-- Rainfall lookup via Open-Meteo API with fallback handling
-- Location input via EXIF GPS, map click/search, or manual coordinates
-- Visualization of archaeological mapping outputs
+Detailed design is documented in `ARCHITECTURE.md`.
 
 ## Tech Stack
 
-### Core Technologies
+### ML / CV
+
+- PyTorch
+- Ultralytics YOLOv8
+- segmentation-models-pytorch (DeepLabV3+)
+- scikit-learn
+- xgboost
+- SHAP
+
+### Backend
 
 - Python
-- PyTorch
-- NumPy
-
-### Computer Vision
-
-- Ultralytics YOLOv8
-- segmentation-models-pytorch
-- OpenCV
-- Pillow
-- pycocotools
-- TorchMetrics
-
-### Data Processing and Interface
-
 - Streamlit
-- pandas
-- requests
-- folium
-- streamlit-folium
+- joblib
+- NumPy, pandas
 
-### Terrain Risk Modeling
+### Frontend
 
-- xgboost
-- scikit-learn
+- Next.js 14
+- React 18
+- TypeScript
+- Tailwind CSS
 
-## Milestones
+### APIs
 
-### Milestone 1 - Dataset Collection & Preparation
+- Open-Elevation API
+- Open-Meteo API
+- SoilGrids API
 
-- Collected archaeological aerial imagery datasets
-- Organized detection and segmentation datasets
-- Configured dataset splits for training, validation, and testing
-- Prepared annotation formats for YOLO and segmentation models
+## Quick Start Guide
 
-### Milestone 2 - Model Development & Pipeline
-
-- Implemented YOLOv8 object detection pipeline
-- Developed DeepLabV3+ segmentation model
-- Created dataset loaders and preprocessing utilities
-- Implemented inference pipeline combining detection and segmentation
-- Built Streamlit interface for visualization
-- Performed initial experiments on terrain feature extraction
-
-### Upcoming Milestone (MS3) - Advanced Analysis & Improvements
-
-Planned work includes:
-
-- Improve model performance and training strategies
-- Add advanced visualization layers to archaeological mapping
-- Implement automated site detection analysis
-- Optimize dataset balancing techniques
-- Explore integration with geospatial mapping tools
-- Improve UI/UX for the Streamlit application
-
-## Public Repository Scope
-
-Included in this repository:
-
-- Training scripts
-- Inference scripts
-- Streamlit application
-- Dataset configuration files
-- Utility scripts
-- Documentation
-- Example datasets
-- Core inference weights
-
-Excluded from this repository:
-
-- large experimental outputs
-- intermediate model checkpoints
-
-Included inference weights:
-
-- deeplab_model.pth
-- runs/detect/yolov8s_archaeology2/weights/best.pt
-
-These allow users to run inference without retraining the models.
-
-## Installation
-
-Clone the repository and install dependencies:
+### 1. Clone and install
 
 ```bash
-git clone <repository-url>
-cd archaeological-site-mapping
+git clone <your-repo-url>
+cd Archaeological-Site-Mapping-AI-V2
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-Run Streamlit from the same environment to avoid package mismatch issues:
+### 2. Run backend (Streamlit)
 
 ```bash
 python -m streamlit run app.py
 ```
 
-## Project Workflow
-
-1. Prepare detection and segmentation datasets
-2. Generate segmentation masks from COCO annotations
-3. Train the YOLO detection model
-4. Train the DeepLab segmentation model
-5. Run inference pipeline
-6. Visualize results through Streamlit interface
-
-## Usage
-
-### Generate Segmentation Masks
+### 3. Run frontend (Next.js)
 
 ```bash
-python generate_masks.py
+cd geo-ai-ui
+npm install
+npm run dev
 ```
 
-Used to convert COCO annotations into segmentation masks.
-
-### Train Detection Model
+### 4. Core scripts
 
 ```bash
-python train_seg.py
+python scripts/data_prep/generate_masks.py
+python scripts/training/train_seg.py
+python scripts/training/train_deeplab_seg.py
+python scripts/inference/predict.py --source dataset/test/images
+python scripts/inference/demo_pipeline.py
 ```
 
-Notes:
+## Project Structure
 
-- trains YOLOv8s detection model
-- uses dataset configuration from data.yaml
-- outputs saved to runs/detect/
-
-### Train Segmentation Model
-
-```bash
-python train_deeplab_seg.py
+```text
+Archaeological-Site-Mapping-AI-V2/
+|-- app.py
+|-- config/
+|   `-- data.yaml
+|-- scripts/
+|   |-- data_prep/
+|   |-- training/
+|   |-- inference/
+|   |-- reporting/
+|   `-- utils/
+|-- models/
+|-- dataset/
+|-- seg_dataset/
+|-- terrain_model/
+|-- runs/
+|-- artifacts/
+|-- geo-ai-ui/
+|-- docs/
+|   |-- screenshots/
+|   `-- reports/
+|-- requirements.txt
+|-- README.md
+|-- METRICS.md
+|-- ARCHITECTURE.md
+|-- FEATURES.md
+|-- MODELS.md
+|-- EXPLAINABILITY.md
+|-- API.md
+|-- UI_UX.md
+|-- FUTURE_WORK.md
+|-- CONTRIBUTING.md
+`-- CHANGELOG.md
 ```
 
-Notes:
+## Results Summary
 
-- trains DeepLabV3+ with ResNet34 encoder
-- expects segmentation dataset in seg_dataset/
-- saves weights to deeplab_model.pth
+For full benchmark tables, confusion matrices, cross-validation, and interpretation, see `METRICS.md`.
 
-### Run Detection Inference
+## Demo Usage Flow
 
-```bash
-python predict.py
-```
+1. Start Streamlit (`app.py`) or Next.js UI (`geo-ai-ui`).
+2. Upload image and provide/select coordinates.
+3. View YOLO detections and DeepLab segmentation overlays.
+4. Trigger erosion prediction from engineered geo-visual features.
+5. Inspect SHAP top contributors and optional LLM explanation.
+6. Export report for downstream analysis.
 
-Uses trained YOLO weights:
+## Documentation
 
-- runs/detect/yolov8s_archaeology2/weights/best.pt
+- [Architecture](./ARCHITECTURE.md)
+- [Models](./MODELS.md)
+- [Features](./FEATURES.md)
+- [Explainability](./EXPLAINABILITY.md)
+- [Metrics](./METRICS.md)
+- [API](./API.md)
+- [UI/UX](./UI_UX.md)
+- [Future Work](./FUTURE_WORK.md)
 
-### Run Combined Pipeline
+Additional project docs:
 
-```bash
-python demo_pipeline.py
-```
+- [Contributing](./CONTRIBUTING.md)
+- [Changelog](./CHANGELOG.md)
 
-Pipeline performs:
+## Why This Project Matters
 
-- object detection
-- semantic segmentation
-- combined archaeological visualization
+- Reduces dependency on manual surveys
+- Enables faster conservation decisions
+- Combines AI + domain knowledge
+- Provides explainable predictions (not black-box)
 
-### Launch Streamlit Application
+## Future Scope
 
-```bash
-python -m streamlit run app.py
-```
+- DEM-aware slope extraction
+- Better soil and geological priors
+- Multi-region transfer and domain adaptation
+- Model serving and SaaS deployment
+- Active learning loop with expert feedback
 
-The interface supports:
+See `FUTURE_WORK.md` for details.
 
-- image upload
-- YOLO detection visualization
-- segmentation overlays
-- combined archaeological mapping view
-- class filtering
-- confidence threshold control
-- GPS extraction from uploaded image EXIF data (if available)
-- manual latitude/longitude input
-- interactive map click and search geocoding
-- terrain analysis outputs: vegetation ratio, slope, elevation, rainfall, soil type
-- erosion risk classification and report download
+## License
 
-## Screenshots
+Add your license file and update this section (for example MIT/Apache-2.0) before public release.
 
-### Hampi Example
+## Author
 
-![Hampi app output](docs/screenshots/app-hampi.png)
+Harshil Somisetty
 
-### Khajuraho Example
-
-![Khajuraho app output](docs/screenshots/app-khajuraho.png)
-
-### Nalanda Example
-
-![Nalanda app output](docs/screenshots/app-nalanda.png)
-
-## Key Files
-
-| File | Description |
-| --- | --- |
-| app.py | Streamlit application |
-| train_seg.py | YOLO detection training |
-| train_deeplab_seg.py | DeepLab segmentation training |
-| demo_pipeline.py | combined inference pipeline |
-| predict.py | YOLO single image inference |
-| generate_masks.py | COCO annotation to mask converter |
-| dataset_loader.py | segmentation dataset loader |
-| metrics.py | IoU and Dice metric computation |
-| terrain_model/extract_terrain_features.py | terrain feature experiment |
-| terrain_model/train_erosion_model.py | erosion model training from extracted features |
-| train_erosion_model.py | root-level erosion training utility |
-| erosion_model.pkl | serialized erosion model used by app |
-
-## Dataset Summary
-
-Total dataset size: 740 images
-
-| Split | Images | Labels | Masks |
-| --- | ---: | ---: | ---: |
-| Train | 648 | 648 | 648 |
-| Validation | 61 | 61 | 61 |
-| Test | 31 | 31 | 31 |
-
-## Detection Classes
-
-Defined in data.yaml:
-
-- 0: boulders
-- 1: others
-- 2: ruins
-- 3: structures
-- 4: vegetation
-
-## Segmentation Classes
-
-Used in DeepLab model:
-
-- 0: background
-- 1: boulders
-- 2: others
-- 3: ruins
-- 4: structures
-- 5: vegetation
-
-## Detection Dataset Distribution
-
-| Class | Instances |
-| --- | ---: |
-| Vegetation | 10620 |
-| Boulders | 3876 |
-| Ruins | 2386 |
-| Others | 1346 |
-| Structures | 230 |
-| Total | 18458 |
-
-
-## Dataset Locations
-
-| Site | Images |
-| --- | ---: |
-| Hampi | 255 |
-| Khajuraho | 238 |
-| Pattadakal | 130 |
-| Nalanda | 117 |
-
-## Model Configuration
-
-### Detection Model
-
-- model: YOLOv8s
-- epochs: 80
-- image size: 640
-- batch size: 8
-- workers: 8
-
-### Segmentation Model
-
-- architecture: DeepLabV3+
-- encoder: ResNet34
-- encoder weights: ImageNet
-- input resolution: 512x512
-- optimizer: Adam
-- learning rate: 1e-4
-- loss: CrossEntropyLoss
-- metrics: IoU, Dice
-
-## Detection Results
-
-Best metrics from YOLO training:
-
-| Metric | Value |
-| --- | ---: |
-| mAP50-95 | 0.58673 |
-| mAP50 | 0.83206 |
-| Precision | 0.89978 |
-| Recall | 0.72010 |
-
-## Future Work
-
-Future improvements may include:
-
-- improving detection accuracy
-- balancing dataset classes
-- integrating geospatial mapping tools
-- adding GIS-based visualization
-- building a web deployment version
-- extending terrain analysis models
-
-## Important Notes
-
-- The repository includes the two trained weights needed by the main app and demo pipeline, but other model files and run outputs remain excluded.
-- `train_seg.py` is the YOLO detection training script despite its generic name.
+If you are using this project for research or deployment, please cite the repository and include the model/artifact version from `artifacts/model_metrics_*/index.json`.
