@@ -242,10 +242,10 @@ See [FUTURE_WORK.md](./FUTURE_WORK.md) for details.
 
 ## License
 
-Add your license file and update this section (for example MIT/Apache-2.0) before public release.
+
 
 ## Author
 
 Harshil Somisetty
 
-If you are using this project for research or deployment, please cite the repository and include the model/artifact version from [artifacts/model_metrics_20260329/index.json](./artifacts/model_metrics_20260329/index.json).
+
