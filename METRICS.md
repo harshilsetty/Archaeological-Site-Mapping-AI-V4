@@ -4,7 +4,7 @@ This document consolidates model-quality, operational, and interpretability-rele
 
 ## 1) Erosion Model Metrics (XGBoost)
 
-Reference artifact: `artifacts/model_metrics_20260329/xgboost_erosion/metrics_summary.json`
+Reference artifact: [artifacts/model_metrics_20260329/xgboost_erosion/metrics_summary.json](./artifacts/model_metrics_20260329/xgboost_erosion/metrics_summary.json)
 
 ### Holdout Evaluation (80/20 split)
 
@@ -30,13 +30,17 @@ Reference artifact: `artifacts/model_metrics_20260329/xgboost_erosion/metrics_su
 
 Supporting files:
 
-- `artifacts/model_metrics_20260329/xgboost_erosion/confusion_matrix_eval.png`
-- `artifacts/model_metrics_20260329/xgboost_erosion/roc_curve_eval.png`
-- `artifacts/model_metrics_20260329/xgboost_erosion/pr_curve_eval.png`
+- [artifacts/model_metrics_20260329/xgboost_erosion/confusion_matrix_eval.png](./artifacts/model_metrics_20260329/xgboost_erosion/confusion_matrix_eval.png)
+- [artifacts/model_metrics_20260329/xgboost_erosion/roc_curve_eval.png](./artifacts/model_metrics_20260329/xgboost_erosion/roc_curve_eval.png)
+- [artifacts/model_metrics_20260329/xgboost_erosion/pr_curve_eval.png](./artifacts/model_metrics_20260329/xgboost_erosion/pr_curve_eval.png)
+
+![XGBoost Confusion Matrix](./artifacts/model_metrics_20260329/xgboost_erosion/confusion_matrix_eval.png)
+![XGBoost ROC Curve](./artifacts/model_metrics_20260329/xgboost_erosion/roc_curve_eval.png)
+![XGBoost PR Curve](./artifacts/model_metrics_20260329/xgboost_erosion/pr_curve_eval.png)
 
 ## 2) Cross Validation (XGBoost)
 
-5-fold Stratified CV on `terrain_model/erosion_dataset.csv` with model config from `terrain_model/train_xgboost.py`.
+5-fold Stratified CV on [terrain_model/erosion_dataset.csv](./terrain_model/erosion_dataset.csv) with model config from [terrain_model/train_xgboost.py](./terrain_model/train_xgboost.py).
 
 | Fold | Accuracy | F1 | ROC-AUC |
 | --- | ---: | ---: | ---: |
@@ -49,7 +53,7 @@ Supporting files:
 
 ## 3) Detection Model Metrics
 
-### YOLOv8s (`runs/detect/yolov8s_archaeology2`)
+### YOLOv8s ([runs/detect/yolov8s_archaeology2](./runs/detect/yolov8s_archaeology2))
 
 | Metric | Final |
 | --- | ---: |
@@ -60,7 +64,7 @@ Supporting files:
 | mAP@50-95 | 0.5861 |
 | Best mAP@50-95 | 0.5867 (epoch 78) |
 
-### YOLOv8n (`runs/detect/train2`)
+### YOLOv8n ([runs/detect/train2](./runs/detect/train2))
 
 | Metric | Final |
 | --- | ---: |
@@ -73,14 +77,17 @@ Supporting files:
 
 Detection artifacts:
 
-- `artifacts/model_metrics_20260329/yolov8s_archaeology2/raw_artifacts/`
-- `artifacts/model_metrics_20260329/yolov8n_train2/raw_artifacts/`
+- [artifacts/model_metrics_20260329/yolov8s_archaeology2/raw_artifacts/](./artifacts/model_metrics_20260329/yolov8s_archaeology2/raw_artifacts/)
+- [artifacts/model_metrics_20260329/yolov8n_train2/raw_artifacts/](./artifacts/model_metrics_20260329/yolov8n_train2/raw_artifacts/)
+- [artifacts/model_metrics_20260329/yolov8s_archaeology2/training_curves_custom.png](./artifacts/model_metrics_20260329/yolov8s_archaeology2/training_curves_custom.png)
+
+![YOLOv8s Training Curves](./artifacts/model_metrics_20260329/yolov8s_archaeology2/training_curves_custom.png)
 
 ## 4) Segmentation Metrics (DeepLabV3+)
 
-Reference artifact: `artifacts/model_metrics_20260329/deeplabv3plus_segmentation/metrics_summary.json`
+Reference artifact: [artifacts/model_metrics_20260329/deeplabv3plus_segmentation/metrics_summary.json](./artifacts/model_metrics_20260329/deeplabv3plus_segmentation/metrics_summary.json)
 
-Evaluation split: `seg_dataset/valid` (61 images)
+Evaluation split: [seg_dataset/valid](./seg_dataset/valid) (61 images)
 
 | Metric | Value |
 | --- | ---: |
@@ -90,7 +97,11 @@ Evaluation split: `seg_dataset/valid` (61 images)
 
 Per-class scores are available in:
 
-- `artifacts/model_metrics_20260329/deeplabv3plus_segmentation/segmentation_per_class_scores.png`
+- [artifacts/model_metrics_20260329/deeplabv3plus_segmentation/segmentation_per_class_scores.png](./artifacts/model_metrics_20260329/deeplabv3plus_segmentation/segmentation_per_class_scores.png)
+- [artifacts/model_metrics_20260329/deeplabv3plus_segmentation/segmentation_confusion_matrix.png](./artifacts/model_metrics_20260329/deeplabv3plus_segmentation/segmentation_confusion_matrix.png)
+
+![DeepLabV3+ Per-Class Scores](./artifacts/model_metrics_20260329/deeplabv3plus_segmentation/segmentation_per_class_scores.png)
+![DeepLabV3+ Confusion Matrix](./artifacts/model_metrics_20260329/deeplabv3plus_segmentation/segmentation_confusion_matrix.png)
 
 ## 5) Operational Metrics Snapshot
 
@@ -127,7 +138,7 @@ Per-class scores are available in:
 
 ## 7) Where to Find Raw Production Artifacts
 
-- Root index: `artifacts/model_metrics_20260329/index.json`
-- Human-readable index: `artifacts/model_metrics_20260329/README.md`
-- Per-model reports: `artifacts/model_metrics_20260329/<model_name>/metrics_report.md`
-- Machine-readable summaries: `artifacts/model_metrics_20260329/<model_name>/metrics_summary.json`
+- Root index: [artifacts/model_metrics_20260329/index.json](./artifacts/model_metrics_20260329/index.json)
+- Human-readable index: [artifacts/model_metrics_20260329/README.md](./artifacts/model_metrics_20260329/README.md)
+- Per-model reports: [artifacts/model_metrics_20260329/<model_name>/metrics_report.md](./artifacts/model_metrics_20260329/)
+- Machine-readable summaries: [artifacts/model_metrics_20260329/<model_name>/metrics_summary.json](./artifacts/model_metrics_20260329/)
