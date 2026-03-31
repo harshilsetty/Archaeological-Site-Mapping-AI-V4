@@ -228,5 +228,4 @@ For full benchmark tables, confusion matrices, cross-validation, and interpretat
 
 ## Author
 Harshil Somisetty
-Harshil SomisettyHarshil Somisetty
 
