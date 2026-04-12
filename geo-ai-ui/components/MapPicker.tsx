@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { MapContainer, Marker, TileLayer, useMap, useMapEvents } from "react-leaflet";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Circle, CircleMarker, MapContainer, Marker, Polygon, TileLayer, Tooltip, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -9,6 +9,10 @@ type MapPickerProps = {
   lat: number;
   lon: number;
   onChange: (lat: number, lon: number) => void;
+  areaRadiusMeters?: number;
+  showRadiusArea?: boolean;
+  polygonVertices?: Array<[number, number]>;
+  sampledPoints?: Array<[number, number]>;
 };
 
 type SearchResult = {
@@ -26,7 +30,27 @@ L.Icon.Default.mergeOptions({
 
 function RecenterMap({ lat, lon }: { lat: number; lon: number }) {
   const map = useMap();
-  map.setView([lat, lon], map.getZoom(), { animate: true });
+  const previousRef = useRef<[number, number] | null>(null);
+
+  useEffect(() => {
+    const previous = previousRef.current;
+    const next: [number, number] = [lat, lon];
+    if (!previous) {
+      previousRef.current = next;
+      map.setView(next, map.getZoom(), { animate: false });
+      return;
+    }
+
+    const latDiff = Math.abs(previous[0] - lat);
+    const lonDiff = Math.abs(previous[1] - lon);
+    if (latDiff < 1e-7 && lonDiff < 1e-7) {
+      return;
+    }
+
+    previousRef.current = next;
+    map.flyTo(next, map.getZoom(), { animate: true, duration: 0.45 });
+  }, [lat, lon, map]);
+
   return null;
 }
 
@@ -39,12 +63,32 @@ function ClickHandler({ onChange }: { onChange: (lat: number, lon: number) => vo
   return null;
 }
 
-export default function MapPicker({ lat, lon, onChange }: MapPickerProps) {
+export default function MapPicker({
+  lat,
+  lon,
+  onChange,
+  areaRadiusMeters = 300,
+  showRadiusArea = false,
+  polygonVertices = [],
+  sampledPoints = [],
+}: MapPickerProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
+  const usePermanentPointLabels = true;
+  const showPointLabels = sampledPoints.length > 0;
 
   const markerPosition = useMemo(() => [lat, lon] as [number, number], [lat, lon]);
+  const activeMarkerIcon = useMemo(
+    () =>
+      L.divIcon({
+        className: "geo-pulse-marker",
+        html: '<span class="geo-pulse-dot"></span>',
+        iconSize: [22, 22],
+        iconAnchor: [11, 11],
+      }),
+    []
+  );
 
   async function handleSearch() {
     if (!query.trim()) {
@@ -109,13 +153,54 @@ export default function MapPicker({ lat, lon, onChange }: MapPickerProps) {
         </div>
       ) : null}
 
-      <div className="overflow-hidden rounded-xl border border-borderSoft">
-        <MapContainer center={markerPosition} zoom={10} scrollWheelZoom className="h-[220px] w-full">
+      <div className="overflow-hidden rounded-xl border border-borderSoft transition hover:border-cyan-300/35">
+        <MapContainer center={markerPosition} zoom={10} scrollWheelZoom preferCanvas className="h-[220px] w-full">
           <TileLayer
             attribution="Tiles &copy; Esri"
             url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
           />
-          <Marker position={markerPosition} />
+          {showRadiusArea ? (
+            <Circle
+              center={markerPosition}
+              radius={areaRadiusMeters}
+              pathOptions={{ color: "#22d3ee", weight: 2, fillOpacity: 0.12 }}
+            />
+          ) : null}
+          {polygonVertices.length >= 3 ? (
+            <Polygon
+              positions={polygonVertices}
+              pathOptions={{ color: "#f59e0b", weight: 2, fillOpacity: 0.12 }}
+            />
+          ) : null}
+          {polygonVertices.map((vertex, index) => (
+            <CircleMarker
+              key={`vertex-${index}-${vertex[0]}-${vertex[1]}`}
+              center={vertex}
+              radius={5}
+              pathOptions={{ color: "#f59e0b", fillColor: "#f59e0b", fillOpacity: 0.9, weight: 1 }}
+            />
+          ))}
+          {sampledPoints.map((point, index) => (
+            <CircleMarker
+              key={`sample-${index}-${point[0]}-${point[1]}`}
+              center={point}
+              radius={4}
+              pathOptions={{ color: "#10b981", fillColor: "#10b981", fillOpacity: 0.85, weight: 1 }}
+            >
+              {showPointLabels ? (
+                <Tooltip
+                  direction="top"
+                  offset={[0, -8]}
+                  opacity={1}
+                  permanent={usePermanentPointLabels}
+                  className="leaf-point-label"
+                >
+                  {index + 1}
+                </Tooltip>
+              ) : null}
+            </CircleMarker>
+          ))}
+          <Marker position={markerPosition} icon={activeMarkerIcon} />
           <ClickHandler onChange={onChange} />
           <RecenterMap lat={lat} lon={lon} />
         </MapContainer>

@@ -151,9 +151,7 @@ def build_erosion_features(
     return np.array([[slope, vegetation_ratio, elevation]], dtype=np.float32), 3
 
 
-def _compute_top_shap(erosion_model, features, feature_mode):
-    global _SHAP_EXPLAINER
-
+def _resolve_feature_names(erosion_model, features, feature_mode):
     feature_names = list(getattr(erosion_model, "feature_names_in_", []))
     if len(feature_names) != features.shape[1]:
         feature_names_by_mode = {
@@ -172,7 +170,20 @@ def _compute_top_shap(erosion_model, features, feature_mode):
         "structures_ratio": "structures",
         "soil_value": "soil",
     }
-    feature_names = [alias.get(name, name) for name in feature_names]
+    return [alias.get(name, name) for name in feature_names]
+
+
+def _predict_probability(erosion_model, features):
+    if hasattr(erosion_model, "predict_proba"):
+        return float(erosion_model.predict_proba(features)[0][1])
+    raw = float(erosion_model.predict(features)[0])
+    return max(0.0, min(1.0, raw))
+
+
+def _compute_top_shap(erosion_model, features, feature_mode):
+    global _SHAP_EXPLAINER
+
+    feature_names = _resolve_feature_names(erosion_model, features, feature_mode)
 
     if _SHAP_EXPLAINER is None:
         _SHAP_EXPLAINER = shap.Explainer(erosion_model)
@@ -195,6 +206,31 @@ def _compute_top_shap(erosion_model, features, feature_mode):
 
     top_indices = np.argsort(np.abs(shap_vals))[::-1][:5]
     return [{"feature": feature_names[i], "value": float(shap_vals[i])} for i in top_indices]
+
+
+def _compute_local_sensitivity_fallback(erosion_model, features, feature_mode):
+    feature_names = _resolve_feature_names(erosion_model, features, feature_mode)
+    baseline = features.astype(np.float32)
+    base_row = baseline[0].copy()
+
+    contributions = []
+    for index, name in enumerate(feature_names):
+        step = max(0.01, abs(float(base_row[index])) * 0.05)
+
+        up = base_row.copy()
+        down = base_row.copy()
+        up[index] += step
+        down[index] -= step
+
+        up_prob = _predict_probability(erosion_model, np.expand_dims(up, axis=0))
+        down_prob = _predict_probability(erosion_model, np.expand_dims(down, axis=0))
+
+        # Signed local contribution using symmetric finite difference.
+        signed_effect = (up_prob - down_prob) / 2.0
+        contributions.append({"feature": name, "value": float(signed_effect)})
+
+    contributions.sort(key=lambda item: abs(item["value"]), reverse=True)
+    return contributions[:5]
 
 
 def _to_bool(value):
@@ -222,6 +258,185 @@ def _build_default_explanation(probability, slope, vegetation_ratio, rainfall):
     )
 
 
+def _soil_to_value(soil):
+    if isinstance(soil, (int, np.integer)):
+        return int(soil)
+
+    soil_text = str(soil or "").strip().lower()
+    if soil_text == "sandy":
+        return 1
+    if soil_text == "clay":
+        return 3
+    return 2
+
+
+def generate_insights(
+    metrics,
+    probability,
+    api_key=None,
+    include_ai_insight=True,
+    include_shap=True,
+):
+    slope = float(metrics.get("slope", 0.0))
+    vegetation_ratio = float(metrics.get("vegetation", 0.0))
+    rainfall = float(metrics.get("rainfall", 0.0))
+    elevation = float(metrics.get("elevation", 0.0))
+    boulders_ratio = float(metrics.get("boulders", 0.0))
+    ruins_ratio = float(metrics.get("ruins", 0.0))
+    structures_ratio = float(metrics.get("structures", 0.0))
+    soil_raw = metrics.get("soil", "loam")
+    soil_value = _soil_to_value(soil_raw)
+    soil_map = {1: "sandy", 2: "loam", 3: "clay"}
+    soil_type = soil_map.get(soil_value, "loam")
+
+    features, feature_mode = build_erosion_features(
+        EROSION_MODEL,
+        slope,
+        vegetation_ratio,
+        elevation,
+        boulders_ratio,
+        ruins_ratio,
+        structures_ratio,
+        rainfall,
+        soil_value,
+    )
+
+    ai_features = {
+        "slope": slope,
+        "vegetation": vegetation_ratio,
+        "rainfall": rainfall,
+        "soil": soil_type,
+        "boulders": boulders_ratio,
+        "ruins": ruins_ratio,
+        "structures": structures_ratio,
+    }
+
+    insight_status = None
+    if include_ai_insight:
+        ai_explanation, insight_mode, insight_status = generate_groq_explanation_with_status(
+            ai_features,
+            probability,
+            api_key=api_key or None,
+        )
+    else:
+        ai_explanation = _build_default_explanation(probability, slope, vegetation_ratio, rainfall)
+        insight_mode = "default"
+
+    top_shap = []
+    if include_shap:
+        try:
+            top_shap = _compute_top_shap(EROSION_MODEL, features, feature_mode)
+        except Exception:
+            top_shap = _compute_local_sensitivity_fallback(EROSION_MODEL, features, feature_mode)
+
+    return {
+        "explanation": ai_explanation,
+        "insightMode": insight_mode,
+        "insightStatus": insight_status,
+        "shap": top_shap,
+    }
+
+
+def _to_float_or_default(value, default):
+    try:
+        parsed = float(value)
+        if np.isfinite(parsed):
+            return parsed
+    except Exception:
+        pass
+    return float(default)
+
+
+def predict_point(
+    lat,
+    lon,
+    api_key=None,
+    use_ai_insight=False,
+    include_shap=True,
+    vegetation_ratio=None,
+    boulders_ratio=None,
+    ruins_ratio=None,
+    structures_ratio=None,
+):
+    vegetation_ratio = max(0.0, min(1.0, _to_float_or_default(vegetation_ratio, 0.35)))
+    boulders_ratio = max(0.0, min(1.0, _to_float_or_default(boulders_ratio, 0.0)))
+    ruins_ratio = max(0.0, min(1.0, _to_float_or_default(ruins_ratio, 0.0)))
+    structures_ratio = max(0.0, min(1.0, _to_float_or_default(structures_ratio, 0.0)))
+
+    features_dict = extract_real_features(lat, lon, vegetation_ratio)
+    slope = float(features_dict["slope"])
+    rainfall = float(features_dict["rainfall"])
+    soil_value = int(features_dict["soil"])
+    elevation = float(features_dict["elevation"])
+
+    features, feature_mode = build_erosion_features(
+        EROSION_MODEL,
+        slope,
+        vegetation_ratio,
+        elevation,
+        boulders_ratio,
+        ruins_ratio,
+        structures_ratio,
+        rainfall,
+        soil_value,
+    )
+
+    probability = _predict_probability(EROSION_MODEL, features)
+    risk_label = "LOW" if probability < 0.3 else "MODERATE" if probability < 0.7 else "HIGH"
+
+    soil_map = {1: "sandy", 2: "loam", 3: "clay"}
+    soil_type = soil_map.get(soil_value, "loam")
+
+    ai_features = {
+        "slope": slope,
+        "vegetation": vegetation_ratio,
+        "rainfall": rainfall,
+        "soil": soil_type,
+        "boulders": boulders_ratio,
+        "ruins": ruins_ratio,
+        "structures": structures_ratio,
+    }
+
+    insight_status = None
+    if use_ai_insight:
+        explanation, insight_mode, insight_status = generate_groq_explanation_with_status(
+            ai_features,
+            probability,
+            api_key=api_key or None,
+        )
+    else:
+        explanation = _build_default_explanation(probability, slope, vegetation_ratio, rainfall)
+        insight_mode = "default"
+
+    top_shap = []
+    if include_shap:
+        try:
+            top_shap = _compute_top_shap(EROSION_MODEL, features, feature_mode)
+        except Exception:
+            top_shap = _compute_local_sensitivity_fallback(EROSION_MODEL, features, feature_mode)
+
+    return {
+        "probability": probability,
+        "riskLabel": risk_label,
+        "explanation": explanation,
+        "insightMode": insight_mode,
+        "insightStatus": insight_status,
+        "metrics": {
+            "vegetation": vegetation_ratio,
+            "slope": slope,
+            "rainfall": rainfall,
+            "elevation": elevation,
+            "soil": soil_type,
+            "boulders": boulders_ratio,
+            "ruins": ruins_ratio,
+            "structures": structures_ratio,
+            "lat": lat,
+            "lon": lon,
+        },
+        "shap": top_shap,
+    }
+
+
 def predict(
     image_path,
     lat,
@@ -230,6 +445,8 @@ def predict(
     confidence=0.25,
     class_visibility=None,
     use_ai_insight=False,
+    include_shap=False,
+    fast_mode=False,
 ):
     if class_visibility is None:
         class_visibility = {
@@ -249,7 +466,8 @@ def predict(
     image = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
 
     detection_img = image.copy()
-    yolo_results = YOLO_MODEL.predict(image, conf=conf_value, imgsz=640, verbose=False)
+    yolo_imgsz = 512 if fast_mode else 640
+    yolo_results = YOLO_MODEL.predict(image, conf=conf_value, imgsz=yolo_imgsz, verbose=False)
     for box in yolo_results[0].boxes:
         x1, y1, x2, y2 = map(int, box.xyxy[0])
         cls = int(box.cls[0])
@@ -337,11 +555,7 @@ def predict(
         soil,
     )
 
-    if hasattr(EROSION_MODEL, "predict_proba"):
-        probability = float(EROSION_MODEL.predict_proba(features)[0][1])
-    else:
-        raw = float(EROSION_MODEL.predict(features)[0])
-        probability = max(0.0, min(1.0, raw))
+    probability = _predict_probability(EROSION_MODEL, features)
 
     soil_map = {1: "sandy", 2: "loam", 3: "clay"}
     soil_type = soil_map.get(soil, "loam")
@@ -366,10 +580,14 @@ def predict(
         ai_explanation = _build_default_explanation(probability, slope, vegetation_ratio, rainfall)
         insight_mode = "default"
 
-    try:
-        top_shap = _compute_top_shap(EROSION_MODEL, features, feature_mode)
-    except Exception:
-        top_shap = []
+    top_shap = []
+    if include_shap:
+        try:
+            top_shap = _compute_top_shap(EROSION_MODEL, features, feature_mode)
+        except Exception:
+            # SHAP can fail for some model/checkpoint combinations; provide a signed local
+            # sensitivity fallback so the UI still receives meaningful feature bars.
+            top_shap = _compute_local_sensitivity_fallback(EROSION_MODEL, features, feature_mode)
 
     return {
         "probability": probability,
@@ -413,6 +631,8 @@ def main():
     parser.add_argument("--show-boulders", default="true")
     parser.add_argument("--show-others", default="true")
     parser.add_argument("--use-ai-insight", default="false")
+    parser.add_argument("--include-shap", default="false")
+    parser.add_argument("--fast-mode", default="false")
     args = parser.parse_args()
 
     try:
@@ -430,6 +650,8 @@ def main():
                 "others": _to_bool(args.show_others),
             },
             use_ai_insight=_to_bool(args.use_ai_insight),
+            include_shap=_to_bool(args.include_shap),
+            fast_mode=_to_bool(args.fast_mode),
         )
         print(json.dumps({"ok": True, "data": payload}))
     except Exception as exc:

@@ -16,6 +16,27 @@ type PythonResult = {
   traceback?: string;
 };
 
+type ImageKey = "original" | "detection" | "segmentation" | "combined" | "heatmap";
+
+type ImageBundle = Record<ImageKey, string>;
+
+type BatchPoint = {
+  lat: number;
+  lon: number;
+};
+
+type StaticSnapshotRequest = {
+  lat: number;
+  lon: number;
+  zoom?: number;
+};
+
+const IMAGE_TTL_MS = 10 * 60 * 1000;
+const IMAGE_KEYS: ImageKey[] = ["original", "detection", "segmentation", "combined", "heatmap"];
+const AUTO_CAPTURE_MAX_RADIUS_METERS = 300;
+const AUTO_CAPTURE_IMAGE_SIZE_PX = 500;
+const AUTO_CAPTURE_ZOOM = 18;
+
 const workspaceRoot = path.resolve(process.cwd(), "..");
 const workerScript = path.join(process.cwd(), "server", "predict_worker.py");
 
@@ -36,6 +57,34 @@ const pending = new Map<
     timeout: NodeJS.Timeout;
   }
 >();
+
+const imageCache = new Map<
+  string,
+  {
+    createdAt: number;
+    images: ImageBundle;
+  }
+>();
+
+function cleanupImageCache() {
+  const now = Date.now();
+  for (const [jobId, entry] of imageCache.entries()) {
+    if (now - entry.createdAt > IMAGE_TTL_MS) {
+      imageCache.delete(jobId);
+    }
+  }
+}
+
+function toImageBundle(value: unknown): ImageBundle {
+  const src = (value || {}) as Partial<ImageBundle>;
+  return {
+    original: typeof src.original === "string" ? src.original : "",
+    detection: typeof src.detection === "string" ? src.detection : "",
+    segmentation: typeof src.segmentation === "string" ? src.segmentation : "",
+    combined: typeof src.combined === "string" ? src.combined : "",
+    heatmap: typeof src.heatmap === "string" ? src.heatmap : "",
+  };
+}
 
 function rejectAllPending(message: string) {
   for (const [id, entry] of pending.entries()) {
@@ -128,7 +177,393 @@ function runWorkerJob(payload: Omit<Record<string, unknown>, "id">): Promise<Pyt
   });
 }
 
+async function downloadStaticSnapshot({ lat, lon, zoom = 14 }: StaticSnapshotRequest): Promise<Uint8Array> {
+  const clampedZoom = AUTO_CAPTURE_ZOOM;
+  const imageSize = AUTO_CAPTURE_IMAGE_SIZE_PX;
+  const center = `${lat.toFixed(6)},${lon.toFixed(6)}`;
+  const marker = `${center},red-pushpin`;
+
+  const degreesPerPixel = 360 / (2 ** clampedZoom * 256);
+  const halfWidthPixels = imageSize / 2;
+  const halfHeightPixels = imageSize / 2;
+  const deltaLon = degreesPerPixel * halfWidthPixels;
+  const deltaLat = degreesPerPixel * halfHeightPixels;
+  const minLon = lon - deltaLon;
+  const maxLon = lon + deltaLon;
+  const minLat = lat - deltaLat;
+  const maxLat = lat + deltaLat;
+
+  const candidateUrls = [
+    `https://staticmap.openstreetmap.de/staticmap.php?center=${encodeURIComponent(center)}&zoom=${clampedZoom}&size=${imageSize}x${imageSize}&markers=${encodeURIComponent(marker)}`,
+    `https://maps.wikimedia.org/img/osm-intl,${clampedZoom},${lat.toFixed(6)},${lon.toFixed(6)},${imageSize}x${imageSize}.png`,
+    `https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export?bbox=${minLon.toFixed(6)},${minLat.toFixed(6)},${maxLon.toFixed(6)},${maxLat.toFixed(6)}&bboxSR=4326&imageSR=4326&size=${imageSize},${imageSize}&format=png32&transparent=false&f=image`,
+  ];
+
+  let lastError = "";
+
+  for (const url of candidateUrls) {
+    let timeout: ReturnType<typeof setTimeout> | null = null;
+    try {
+      const controller = new AbortController();
+      timeout = setTimeout(() => controller.abort(), 12000);
+
+      const response = await fetch(url, {
+        cache: "no-store",
+        signal: controller.signal,
+        headers: {
+          "User-Agent": "GeoAI-UI/1.0",
+          Accept: "image/png,image/jpeg,image/*;q=0.8,*/*;q=0.5",
+        },
+      });
+
+      if (!response.ok) {
+        lastError = `HTTP ${response.status} from ${new URL(url).hostname}`;
+        continue;
+      }
+
+      const contentType = String(response.headers.get("content-type") || "").toLowerCase();
+      if (!contentType.includes("image")) {
+        lastError = `non-image response (${contentType || "unknown content-type"})`;
+        continue;
+      }
+
+      const buffer = await response.arrayBuffer();
+      if (buffer.byteLength < 1024) {
+        lastError = `response image too small from ${new URL(url).hostname}`;
+        continue;
+      }
+
+      return new Uint8Array(buffer);
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : String(err);
+    } finally {
+      if (timeout) {
+        clearTimeout(timeout);
+      }
+    }
+  }
+
+  throw new Error(`Failed to capture map snapshot (<=${AUTO_CAPTURE_MAX_RADIUS_METERS}m mode). ${lastError || "All providers failed."}`);
+}
+
+export async function GET(request: NextRequest) {
+  cleanupImageCache();
+
+  const action = request.nextUrl.searchParams.get("action");
+  if (action === "snapshot") {
+    try {
+      const lat = Number(request.nextUrl.searchParams.get("lat"));
+      const lon = Number(request.nextUrl.searchParams.get("lon"));
+      const zoom = Number(request.nextUrl.searchParams.get("zoom"));
+
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+        return NextResponse.json({ error: "lat and lon are required" }, { status: 400 });
+      }
+
+      const snapshot = await downloadStaticSnapshot({
+        lat,
+        lon,
+        zoom: Number.isFinite(zoom) ? zoom : AUTO_CAPTURE_ZOOM,
+      });
+
+      return new NextResponse(snapshot, {
+        status: 200,
+        headers: {
+          "Content-Type": "image/png",
+          "Cache-Control": "no-store, max-age=0",
+        },
+      });
+    } catch (err) {
+      return NextResponse.json(
+        {
+          error: "Failed to capture map snapshot",
+          details: err instanceof Error ? err.message : String(err),
+        },
+        { status: 500 },
+      );
+    }
+  }
+
+  if (action !== "image") {
+    return NextResponse.json({ error: "Unsupported action" }, { status: 400 });
+  }
+
+  const jobId = String(request.nextUrl.searchParams.get("jobId") || "").trim();
+  const imageName = String(request.nextUrl.searchParams.get("name") || "").trim() as ImageKey;
+
+  if (!jobId || !IMAGE_KEYS.includes(imageName)) {
+    return NextResponse.json({ error: "jobId and valid image name are required" }, { status: 400 });
+  }
+
+  const cached = imageCache.get(jobId);
+  if (!cached) {
+    return NextResponse.json({ error: "Image job expired or not found" }, { status: 404 });
+  }
+
+  const src = cached.images[imageName] || "";
+
+  return NextResponse.json(
+    {
+      name: imageName,
+      src,
+    },
+    { status: 200 },
+  );
+}
+
 export async function POST(request: NextRequest) {
+  cleanupImageCache();
+
+  const action = request.nextUrl.searchParams.get("action") || "predict";
+
+  if (action === "point") {
+    try {
+      const payload = (await request.json()) as {
+        lat?: number;
+        lon?: number;
+        apiKey?: string;
+        useAiInsight?: boolean;
+        includeShap?: boolean;
+        vegetation?: number;
+        boulders?: number;
+        ruins?: number;
+        structures?: number;
+      };
+
+      const lat = Number(payload.lat);
+      const lon = Number(payload.lon);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+        return NextResponse.json({ error: "Latitude and longitude must be valid numbers" }, { status: 400 });
+      }
+
+      const parsed = await runWorkerJob({
+        action: "point",
+        lat,
+        lon,
+        apiKey: normalizeApiKey(String(payload.apiKey || "")),
+        useAiInsight: payload.useAiInsight === true,
+        includeShap: payload.includeShap !== false,
+        vegetation: Number.isFinite(Number(payload.vegetation)) ? Number(payload.vegetation) : undefined,
+        boulders: Number.isFinite(Number(payload.boulders)) ? Number(payload.boulders) : undefined,
+        ruins: Number.isFinite(Number(payload.ruins)) ? Number(payload.ruins) : undefined,
+        structures: Number.isFinite(Number(payload.structures)) ? Number(payload.structures) : undefined,
+      });
+
+      if (!parsed.ok) {
+        return NextResponse.json(
+          {
+            error: parsed.error || "Point inference failed",
+            details: parsed.traceback || "Worker returned an error",
+          },
+          { status: 500 },
+        );
+      }
+
+      return NextResponse.json(parsed.data, { status: 200 });
+    } catch (err) {
+      return NextResponse.json(
+        {
+          error: "Unexpected point API failure",
+          details: err instanceof Error ? err.message : String(err),
+        },
+        { status: 500 },
+      );
+    }
+  }
+
+  if (action === "batch") {
+    const form = await request.formData();
+    const image = form.get("image");
+    const pointsRaw = String(form.get("points") || "[]");
+    const apiKey = normalizeApiKey(String(form.get("apiKey") || ""));
+    const confidence = Number(form.get("confidence"));
+    const showVegetation = String(form.get("showVegetation") || "true");
+    const showRuins = String(form.get("showRuins") || "true");
+    const showStructures = String(form.get("showStructures") || "true");
+    const showBoulders = String(form.get("showBoulders") || "true");
+    const showOthers = String(form.get("showOthers") || "true");
+    const fastMode = String(form.get("fastMode") || "true");
+    const useAiInsight = String(form.get("useAiInsight") || "true");
+    const includeShap = String(form.get("includeShap") || "true");
+    const autoCapture = String(form.get("autoCapture") || "false");
+    const centerLat = Number(form.get("centerLat"));
+    const centerLon = Number(form.get("centerLon"));
+    const mapZoom = Number(form.get("mapZoom"));
+
+    const hasUploadedImage = image instanceof File;
+    const canAutoCapture =
+      !hasUploadedImage &&
+      ["1", "true", "yes", "on"].includes(autoCapture.toLowerCase()) &&
+      Number.isFinite(centerLat) &&
+      Number.isFinite(centerLon);
+
+    if (!hasUploadedImage && !canAutoCapture) {
+      return NextResponse.json({ error: "Image file is required (or enable autoCapture with valid centerLat/centerLon)." }, { status: 400 });
+    }
+
+    let parsedPoints: BatchPoint[] = [];
+    try {
+      const raw = JSON.parse(pointsRaw) as Array<{ lat?: unknown; lon?: unknown }>;
+      parsedPoints = Array.isArray(raw)
+        ? raw
+          .map((item) => ({ lat: Number(item?.lat), lon: Number(item?.lon) }))
+          .filter((item) => Number.isFinite(item.lat) && Number.isFinite(item.lon))
+        : [];
+    } catch {
+      parsedPoints = [];
+    }
+
+    if (parsedPoints.length === 0) {
+      return NextResponse.json({ error: "At least one valid point is required" }, { status: 400 });
+    }
+
+    const cappedPoints = parsedPoints.slice(0, 30);
+    const tempFile = hasUploadedImage
+      ? path.join(os.tmpdir(), `geo-ai-batch-${Date.now()}-${(image as File).name}`)
+      : path.join(os.tmpdir(), `geo-ai-batch-${Date.now()}-autosnapshot.png`);
+
+    try {
+      if (hasUploadedImage) {
+        const bytes = await (image as File).arrayBuffer();
+        await writeFile(tempFile, new Uint8Array(bytes));
+      } else {
+        const snapshot = await downloadStaticSnapshot({
+          lat: centerLat,
+          lon: centerLon,
+          zoom: Number.isFinite(mapZoom) ? mapZoom : 14,
+        });
+        await writeFile(tempFile, snapshot);
+      }
+
+      const results: Array<{
+        lat: number;
+        lon: number;
+        probability: number;
+        riskLabel: string;
+        explanation?: string;
+        shap?: unknown;
+        insightMode?: string | null;
+        insightStatus?: string | null;
+      }> = [];
+
+      for (const point of cappedPoints) {
+        const parsed = await runWorkerJob({
+          action: "predict",
+          image: tempFile,
+          lat: point.lat,
+          lon: point.lon,
+          apiKey,
+          confidence: Number.isFinite(confidence) ? confidence : 0.25,
+          classVisibility: {
+            vegetation: showVegetation,
+            ruins: showRuins,
+            structures: showStructures,
+            boulders: showBoulders,
+            others: showOthers,
+          },
+          useAiInsight,
+          includeShap,
+          fastMode,
+        });
+
+        if (!parsed.ok) {
+          return NextResponse.json(
+            {
+              error: parsed.error || "Batch inference failed",
+              details: parsed.traceback || "Worker returned an error",
+            },
+            { status: 500 },
+          );
+        }
+
+        const data = (parsed.data || {}) as {
+          probability?: unknown;
+          riskLabel?: unknown;
+          explanation?: unknown;
+          shap?: unknown;
+          insightMode?: unknown;
+          insightStatus?: unknown;
+        };
+        const probability = Number(data.probability);
+        const riskLabel = typeof data.riskLabel === "string" ? data.riskLabel : "MODERATE";
+
+        results.push({
+          lat: point.lat,
+          lon: point.lon,
+          probability: Number.isFinite(probability) ? probability : 0,
+          riskLabel,
+          explanation: typeof data.explanation === "string" ? data.explanation : undefined,
+          shap: data.shap,
+          insightMode: typeof data.insightMode === "string" ? data.insightMode : null,
+          insightStatus: typeof data.insightStatus === "string" ? data.insightStatus : null,
+        });
+      }
+
+      return NextResponse.json(
+        {
+          points: results,
+          truncated: parsedPoints.length > cappedPoints.length,
+        },
+        { status: 200 },
+      );
+    } catch (err) {
+      return NextResponse.json(
+        {
+          error: "Unexpected batch API failure",
+          details: err instanceof Error ? err.message : String(err),
+        },
+        { status: 500 },
+      );
+    } finally {
+      try {
+        await unlink(tempFile);
+      } catch {
+        // Ignore temp file cleanup errors.
+      }
+    }
+  }
+
+  if (action === "insight") {
+    try {
+      const payload = (await request.json()) as {
+        metrics?: unknown;
+        probability?: number;
+        apiKey?: string;
+        useAiInsight?: boolean;
+        includeShap?: boolean;
+      };
+
+      const parsed = await runWorkerJob({
+        action: "insight",
+        metrics: payload.metrics || {},
+        probability: Number.isFinite(payload.probability) ? payload.probability : 0,
+        apiKey: normalizeApiKey(String(payload.apiKey || "")),
+        useAiInsight: payload.useAiInsight !== false,
+        includeShap: payload.includeShap !== false,
+      });
+
+      if (!parsed.ok) {
+        return NextResponse.json(
+          {
+            error: parsed.error || "Insight generation failed",
+            details: parsed.traceback || "Worker returned an error",
+          },
+          { status: 500 },
+        );
+      }
+
+      return NextResponse.json(parsed.data, { status: 200 });
+    } catch (err) {
+      return NextResponse.json(
+        {
+          error: "Unexpected insight API failure",
+          details: err instanceof Error ? err.message : String(err),
+        },
+        { status: 500 },
+      );
+    }
+  }
+
   const form = await request.formData();
   const image = form.get("image");
   const latRaw = form.get("lat");
@@ -141,10 +576,12 @@ export async function POST(request: NextRequest) {
   const showBoulders = String(form.get("showBoulders") || "true");
   const showOthers = String(form.get("showOthers") || "true");
   const useAiInsight = String(form.get("useAiInsight") || "false");
+  const includeShap = String(form.get("includeShap") || "false");
+  const fastMode = String(form.get("fastMode") || "true");
+  const autoCapture = String(form.get("autoCapture") || "false");
+  const mapZoom = Number(form.get("mapZoom"));
 
-  if (!(image instanceof File)) {
-    return NextResponse.json({ error: "Image file is required" }, { status: 400 });
-  }
+  const hasUploadedImage = image instanceof File;
 
   const lat = Number(latRaw);
   const lon = Number(lonRaw);
@@ -153,13 +590,35 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Latitude and longitude must be valid numbers" }, { status: 400 });
   }
 
-  const tempFile = path.join(os.tmpdir(), `geo-ai-${Date.now()}-${image.name}`);
+  const canAutoCapture =
+    !hasUploadedImage &&
+    ["1", "true", "yes", "on"].includes(autoCapture.toLowerCase()) &&
+    Number.isFinite(lat) &&
+    Number.isFinite(lon);
+
+  if (!hasUploadedImage && !canAutoCapture) {
+    return NextResponse.json({ error: "Image file is required (or enable autoCapture with valid coordinates)" }, { status: 400 });
+  }
+
+  const tempFile = hasUploadedImage
+    ? path.join(os.tmpdir(), `geo-ai-${Date.now()}-${(image as File).name}`)
+    : path.join(os.tmpdir(), `geo-ai-${Date.now()}-autosnapshot.png`);
 
   try {
-    const bytes = await image.arrayBuffer();
-    await writeFile(tempFile, new Uint8Array(bytes));
+    if (hasUploadedImage) {
+      const bytes = await (image as File).arrayBuffer();
+      await writeFile(tempFile, new Uint8Array(bytes));
+    } else {
+      const snapshot = await downloadStaticSnapshot({
+        lat,
+        lon,
+        zoom: Number.isFinite(mapZoom) ? mapZoom : 14,
+      });
+      await writeFile(tempFile, snapshot);
+    }
 
     const parsed = await runWorkerJob({
+      action: "predict",
       image: tempFile,
       lat,
       lon,
@@ -173,6 +632,8 @@ export async function POST(request: NextRequest) {
         others: showOthers,
       },
       useAiInsight,
+      includeShap,
+      fastMode,
     });
 
     if (!parsed.ok) {
@@ -185,7 +646,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json(parsed.data, { status: 200 });
+    const rawData = (parsed.data || {}) as Record<string, unknown>;
+    const rawImages = toImageBundle(rawData.images);
+    const imageJobId = `img_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+
+    imageCache.set(imageJobId, { createdAt: Date.now(), images: rawImages });
+
+    const nextData = {
+      ...rawData,
+      imageJobId,
+      pendingImages: IMAGE_KEYS.filter((key) => key !== "original" && Boolean(rawImages[key])),
+      images: {
+        original: rawImages.original,
+        detection: "",
+        segmentation: "",
+        combined: "",
+        heatmap: "",
+      },
+    };
+
+    return NextResponse.json(nextData, { status: 200 });
   } catch (err) {
     return NextResponse.json(
       {
@@ -200,8 +680,5 @@ export async function POST(request: NextRequest) {
     } catch {
       // Ignore temp file cleanup errors.
     }
-
-    // Recycle the Python worker to avoid stale imported modules during active development.
-    shutdownWorker();
   }
 }
