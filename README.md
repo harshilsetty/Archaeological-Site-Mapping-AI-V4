@@ -216,12 +216,7 @@ For full benchmark tables, confusion matrices, cross-validation, and interpretat
 - [Metrics](./METRICS.md)
 - [API](./API.md)
 - [UI/UX](./UI_UX.md)
-- [Future Work](./FUTURE_WORK.md)
 
-Additional project docs:
-
-- [Contributing](./CONTRIBUTING.md)
-- [Changelog](./CHANGELOG.md)
 
 ## Why This Project Matters
 
@@ -230,18 +225,7 @@ Additional project docs:
 - Combines AI + domain knowledge
 - Provides explainable predictions (not black-box)
 
-## Future Scope
-
-- DEM-aware slope extraction
-- Better soil and geological priors
-- Multi-region transfer and domain adaptation
-- Model serving and SaaS deployment
-- Active learning loop with expert feedback
-
-See [FUTURE_WORK.md](./FUTURE_WORK.md) for details.
-
 
 ## Author
-
 Harshil Somisetty
 
