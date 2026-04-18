@@ -109,6 +109,10 @@ function shouldProxyToRemote() {
   return REMOTE_PREDICT_URL.length > 0;
 }
 
+function shouldRequireRemoteBackendInServerless() {
+  return process.env.VERCEL === "1" && !shouldProxyToRemote();
+}
+
 function buildRemotePredictUrl(nextUrl: URL): URL {
   const remoteUrl = new URL(REMOTE_PREDICT_URL);
   remoteUrl.search = "";
@@ -317,6 +321,16 @@ async function downloadStaticSnapshot({ lat, lon, zoom = 14 }: StaticSnapshotReq
 }
 
 export async function GET(request: NextRequest) {
+  if (shouldRequireRemoteBackendInServerless()) {
+    return NextResponse.json(
+      {
+        error: "Prediction backend not configured",
+        details: "Set PREDICT_BACKEND_URL (or REMOTE_PREDICT_URL) to your deployed Python inference endpoint.",
+      },
+      { status: 503 },
+    );
+  }
+
   if (shouldProxyToRemote()) {
     try {
       return await proxyRequestToRemote(request);
@@ -396,6 +410,16 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  if (shouldRequireRemoteBackendInServerless()) {
+    return NextResponse.json(
+      {
+        error: "Prediction backend not configured",
+        details: "Set PREDICT_BACKEND_URL (or REMOTE_PREDICT_URL) to your deployed Python inference endpoint.",
+      },
+      { status: 503 },
+    );
+  }
+
   if (shouldProxyToRemote()) {
     try {
       return await proxyRequestToRemote(request);
