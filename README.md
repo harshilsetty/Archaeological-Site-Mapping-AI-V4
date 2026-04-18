@@ -147,6 +147,19 @@ npm install
 npm run dev
 ```
 
+### 3.1 Deploy Node.js UI (Vercel)
+
+The Next.js app can be deployed on Vercel. For production inference, set an external Python backend URL so `/api/predict` can proxy requests:
+
+```bash
+# In Vercel Project Settings -> Environment Variables
+PREDICT_BACKEND_URL=https://<your-python-backend>/api/predict
+```
+
+Notes:
+- Without `PREDICT_BACKEND_URL`, the API route tries to spawn a local Python worker (works locally, not ideal on serverless hosts).
+- If deployment protection is enabled in Vercel, unauthenticated users will get `401 Authentication Required` and predictions will not run.
+
 ### 4. Core scripts
 
 ```bash

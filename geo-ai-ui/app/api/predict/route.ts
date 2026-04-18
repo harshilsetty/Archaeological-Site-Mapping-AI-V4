@@ -36,6 +36,9 @@ const IMAGE_KEYS: ImageKey[] = ["original", "detection", "segmentation", "combin
 const AUTO_CAPTURE_MAX_RADIUS_METERS = 300;
 const AUTO_CAPTURE_IMAGE_SIZE_PX = 500;
 const AUTO_CAPTURE_ZOOM = 18;
+const REMOTE_PREDICT_URL = (process.env.PREDICT_BACKEND_URL || process.env.REMOTE_PREDICT_URL || "")
+  .trim()
+  .replace(/\/+$/, "");
 
 const workspaceRoot = path.resolve(process.cwd(), "..");
 const workerScript = path.join(process.cwd(), "server", "predict_worker.py");
@@ -102,13 +105,78 @@ function shutdownWorker() {
   lineBuffer = "";
 }
 
+function shouldProxyToRemote() {
+  return REMOTE_PREDICT_URL.length > 0;
+}
+
+function buildRemotePredictUrl(nextUrl: URL): URL {
+  const remoteUrl = new URL(REMOTE_PREDICT_URL);
+  remoteUrl.search = "";
+
+  nextUrl.searchParams.forEach((value, key) => {
+    remoteUrl.searchParams.append(key, value);
+  });
+
+  return remoteUrl;
+}
+
+async function proxyRequestToRemote(request: NextRequest): Promise<NextResponse> {
+  const target = buildRemotePredictUrl(request.nextUrl);
+  const headers = new Headers();
+
+  const contentType = request.headers.get("content-type");
+  if (contentType) {
+    headers.set("content-type", contentType);
+  }
+
+  const accept = request.headers.get("accept");
+  if (accept) {
+    headers.set("accept", accept);
+  }
+
+  const auth = request.headers.get("authorization");
+  if (auth) {
+    headers.set("authorization", auth);
+  }
+
+  const body = request.method === "GET" || request.method === "HEAD" ? undefined : await request.arrayBuffer();
+
+  const upstream = await fetch(target, {
+    method: request.method,
+    headers,
+    body,
+    cache: "no-store",
+  });
+
+  const responseHeaders = new Headers();
+  const responseType = upstream.headers.get("content-type");
+  if (responseType) {
+    responseHeaders.set("content-type", responseType);
+  }
+
+  const responseCache = upstream.headers.get("cache-control");
+  if (responseCache) {
+    responseHeaders.set("cache-control", responseCache);
+  }
+
+  const payload = await upstream.arrayBuffer();
+  return new NextResponse(payload, { status: upstream.status, headers: responseHeaders });
+}
+
 function ensureWorker() {
   if (worker && !worker.killed) {
     return worker;
   }
 
   const pythonExe = process.env.PYTHON_EXECUTABLE || "python";
-  worker = spawn(pythonExe, [workerScript], { cwd: workspaceRoot });
+  try {
+    worker = spawn(pythonExe, [workerScript], { cwd: workspaceRoot });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(
+      `Failed to start Python worker (${message}). Set PREDICT_BACKEND_URL in production to use an external Python inference API.`
+    );
+  }
   lineBuffer = "";
 
   worker.stdout.on("data", (chunk) => {
@@ -156,7 +224,9 @@ function ensureWorker() {
   });
 
   worker.on("error", (err) => {
-    rejectAllPending(`Python worker error: ${err.message}`);
+    rejectAllPending(
+      `Python worker error: ${err.message}. Set PREDICT_BACKEND_URL in production to use an external Python inference API.`
+    );
   });
 
   return worker;
@@ -247,6 +317,20 @@ async function downloadStaticSnapshot({ lat, lon, zoom = 14 }: StaticSnapshotReq
 }
 
 export async function GET(request: NextRequest) {
+  if (shouldProxyToRemote()) {
+    try {
+      return await proxyRequestToRemote(request);
+    } catch (err) {
+      return NextResponse.json(
+        {
+          error: "Remote prediction service request failed",
+          details: err instanceof Error ? err.message : String(err),
+        },
+        { status: 502 },
+      );
+    }
+  }
+
   cleanupImageCache();
 
   const action = request.nextUrl.searchParams.get("action");
@@ -312,6 +396,20 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  if (shouldProxyToRemote()) {
+    try {
+      return await proxyRequestToRemote(request);
+    } catch (err) {
+      return NextResponse.json(
+        {
+          error: "Remote prediction service request failed",
+          details: err instanceof Error ? err.message : String(err),
+        },
+        { status: 502 },
+      );
+    }
+  }
+
   cleanupImageCache();
 
   const action = request.nextUrl.searchParams.get("action") || "predict";
