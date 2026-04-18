@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { Bell, BrainCircuit, CheckCircle2, Crosshair, FileDown, ImageDown, Loader2, Settings, UploadCloud, X, Zap } from "lucide-react";
@@ -104,7 +104,7 @@ const NAV_TABS: Array<{ id: TabId; label: string }> = [
   { id: "analytics", label: "Analytics" },
 ];
 
-export default function Page() {
+function PageContent() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -1959,5 +1959,13 @@ export default function Page() {
       </AnimatePresence>
       </div>
     </MotionConfig>
+  );
+}
+
+export default function Page() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-surface" />}>
+      <PageContent />
+    </Suspense>
   );
 }
