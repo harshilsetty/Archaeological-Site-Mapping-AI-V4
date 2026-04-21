@@ -43,6 +43,7 @@ def _resolve_segmentation_checkpoint():
 
 def _resolve_erosion_model_path():
     candidates = [
+        os.path.join(ROOT, "terrain_model", "erosion_model.pkl"),
         os.path.join(ROOT, "models", "erosion_model.pkl"),
         os.path.join(ROOT, "erosion_model.pkl"),
     ]
